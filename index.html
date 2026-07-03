@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Audits.farm — Catch the Reject Before You Pay For It</title>
+<meta name="description" content="Automated print-spec validation and cover audits for KDP, IngramSpark, and Lulu. Know it'll pass before you submit.">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d0b08;--surface:#151109;--border:#2b2317;
+  --text:#a89a80;--bright:#f5efe3;--dim:#4a4032;
+  --amber:#fbbf24;--gold:#f59e0b;--green:#4ade80;--red:#f87171;
+}
+html,body{min-height:100%;background:var(--bg);color:var(--text);font-family:'Consolas','Monaco','Courier New',monospace;overflow-x:hidden}
+
+/* ── Bees ── */
+.bee{position:fixed;font-size:13px;user-select:none;pointer-events:none;z-index:1;opacity:.55}
+@keyframes drift-right{
+  0%{transform:translate(-20px,0)} 25%{transform:translate(25vw,-14px)} 50%{transform:translate(50vw,6px)}
+  75%{transform:translate(75vw,-10px)} 100%{transform:translate(calc(100vw + 20px),0)}
+}
+@keyframes drift-left{
+  0%{transform:translate(calc(100vw + 20px),0)} 25%{transform:translate(75vw,10px)} 50%{transform:translate(50vw,-8px)}
+  75%{transform:translate(25vw,12px)} 100%{transform:translate(-20px,0)}
+}
+
+/* ── Honeycomb backdrop ── */
+.comb{
+  position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5;
+  background-image:
+    radial-gradient(circle at 0 0, transparent 9px, rgba(251,191,36,.035) 10px, rgba(251,191,36,.035) 11px, transparent 12px),
+    radial-gradient(circle at 30px 17px, transparent 9px, rgba(251,191,36,.035) 10px, rgba(251,191,36,.035) 11px, transparent 12px);
+  background-size:30px 34px
+}
+
+/* ── Layout ── */
+.page{position:relative;z-index:10;display:flex;flex-direction:column;align-items:center;padding:64px 24px 80px}
+
+/* ── Hero ── */
+.hero{text-align:center;max-width:640px}
+.logo{
+  font-size:clamp(46px, 10vw, 92px);font-weight:bold;
+  color:var(--bright);letter-spacing:.05em;line-height:1
+}
+.logo span{color:var(--amber)}
+.logo-eyebrow{
+  font-size:11px;color:var(--dim);letter-spacing:.28em;
+  text-transform:uppercase;margin-bottom:12px
+}
+.hero-headline{
+  font-size:clamp(16px,3vw,24px);color:var(--bright);
+  margin-top:24px;line-height:1.4;
+  font-family:system-ui,-apple-system,sans-serif;font-weight:600
+}
+.hero-sub{
+  font-size:clamp(13px,2.5vw,16px);color:var(--text);
+  margin-top:10px;line-height:1.7;
+  font-family:system-ui,-apple-system,sans-serif;font-weight:300;
+  max-width:520px;margin-left:auto;margin-right:auto
+}
+
+/* ── Vendor trust row ── */
+.vendors{
+  display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:28px
+}
+.vendor-pill{
+  display:flex;align-items:center;gap:6px;
+  background:var(--surface);border:1px solid var(--border);border-radius:20px;
+  padding:6px 14px;font-size:11px;color:var(--text);font-family:system-ui,-apple-system,sans-serif
+}
+.vendor-pill .dot{width:6px;height:6px;border-radius:50%;background:var(--green)}
+
+/* ── Waitlist ── */
+.waitlist-wrap{margin-top:36px;width:100%;max-width:400px;text-align:center}
+.waitlist-heading{
+  font-size:13px;color:var(--amber);letter-spacing:.1em;
+  text-transform:uppercase;margin-bottom:14px;font-weight:bold
+}
+.waitlist-form{display:flex;gap:8px}
+.waitlist-form input{
+  flex:1;background:var(--surface);border:1px solid var(--border);
+  color:var(--bright);padding:13px 16px;font-family:inherit;font-size:14px;
+  border-radius:4px;outline:none;min-width:0
+}
+.waitlist-form input::placeholder{color:var(--dim)}
+.waitlist-form input:focus{border-color:var(--amber)}
+.waitlist-form button{
+  background:var(--amber);color:#0d0b08;border:none;
+  padding:13px 20px;font-family:inherit;font-size:13px;font-weight:bold;
+  cursor:pointer;border-radius:4px;white-space:nowrap
+}
+.waitlist-form button:hover{background:#fcd34d}
+.waitlist-note{font-size:11px;color:var(--dim);margin-top:10px;letter-spacing:.04em}
+.waitlist-msg{font-size:12px;color:var(--green);margin-top:6px;min-height:16px}
+
+/* ── Offer / what it does ── */
+.offer{margin-top:80px;width:100%;max-width:760px}
+.offer-heading{
+  font-size:11px;color:var(--amber);letter-spacing:.18em;
+  text-transform:uppercase;font-weight:bold;margin-bottom:20px;text-align:center
+}
+.offer-grid{
+  display:grid;grid-template-columns:repeat(auto-fit, minmax(220px, 1fr));gap:16px
+}
+.offer-card{
+  background:var(--surface);border:1px solid var(--border);
+  padding:22px;border-radius:6px;transition:border-color .2s
+}
+.offer-card:hover{border-color:var(--dim)}
+.offer-icon{font-size:22px;margin-bottom:10px}
+.offer-name{font-size:11px;color:var(--amber);letter-spacing:.1em;text-transform:uppercase;font-weight:bold;margin-bottom:6px}
+.offer-pitch{font-size:13px;color:var(--bright);font-family:system-ui,-apple-system,sans-serif;font-weight:600;margin-bottom:5px}
+.offer-desc{font-size:12px;color:var(--text);font-family:system-ui,-apple-system,sans-serif;line-height:1.55}
+
+/* ── Proof / registry ── */
+.proof{margin-top:72px;width:100%;max-width:640px;text-align:center}
+.proof-heading{font-size:15px;color:var(--bright);font-weight:600;font-family:system-ui,-apple-system,sans-serif}
+.proof-sub{font-size:13px;color:var(--text);margin-top:8px;line-height:1.6;font-family:system-ui,-apple-system,sans-serif}
+.proof-stats{display:flex;gap:28px;justify-content:center;margin-top:24px;flex-wrap:wrap}
+.proof-stat-val{font-size:26px;color:var(--amber);font-weight:bold;font-family:system-ui,-apple-system,sans-serif}
+.proof-stat-label{font-size:10px;color:var(--dim);text-transform:uppercase;letter-spacing:.08em;margin-top:4px}
+
+/* ── Site family ── */
+.family{margin-top:64px;width:100%;max-width:640px;text-align:center}
+.family-sub{font-size:12px;color:var(--dim);margin-bottom:16px;font-family:system-ui,-apple-system,sans-serif}
+.family-links{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+.family-link{
+  color:var(--text);text-decoration:none;font-size:11px;
+  border:1px solid var(--border);border-radius:20px;padding:6px 14px;
+  font-family:system-ui,-apple-system,sans-serif;transition:border-color .2s,color .2s
+}
+.family-link:hover{border-color:var(--amber);color:var(--amber)}
+
+/* ── Footer ── */
+.footer{
+  position:fixed;bottom:16px;width:100%;text-align:center;
+  font-size:10px;color:var(--dim);letter-spacing:.06em;z-index:10
+}
+.footer a{color:var(--dim);text-decoration:none}
+.footer a:hover{color:var(--text)}
+
+@media(max-width:480px){
+  .page{padding:48px 16px 96px}
+  .waitlist-form{flex-direction:column}
+}
+</style>
+</head>
+<body>
+
+<div class="comb"></div>
+
+<div class="page">
+
+  <!-- Hero -->
+  <div class="hero">
+    <div class="logo-eyebrow">print-spec compliance · coming soon</div>
+    <div class="logo">AUDITS<span>.</span>FARM</div>
+    <div class="hero-headline">Catch the Reject Before You Pay For It.</div>
+    <div class="hero-sub">Automated print-spec validation and cover audits for print-on-demand publishing. Upload your files, know they'll pass — before you submit, not after.</div>
+  </div>
+
+  <!-- Vendor trust row -->
+  <div class="vendors">
+    <div class="vendor-pill"><span class="dot"></span>KDP</div>
+    <div class="vendor-pill"><span class="dot"></span>IngramSpark</div>
+    <div class="vendor-pill"><span class="dot"></span>Lulu</div>
+  </div>
+
+  <!-- Waitlist -->
+  <div class="waitlist-wrap">
+    <div class="waitlist-heading">🐝 Get Early Access</div>
+    <div class="waitlist-form">
+      <input type="email" id="email" placeholder="your@email.com" autocomplete="email">
+      <button onclick="join()">Join Waitlist</button>
+    </div>
+    <div class="waitlist-note">No spam. We'll email you when audits open up.</div>
+    <div class="waitlist-msg" id="wl-msg"></div>
+  </div>
+
+  <!-- Offer -->
+  <div class="offer">
+    <div class="offer-heading">What Gets Audited</div>
+    <div class="offer-grid">
+      <div class="offer-card">
+        <div class="offer-icon">📐</div>
+        <div class="offer-name">Spine &amp; Trim Validation</div>
+        <div class="offer-pitch">Exact PPI, every vendor.</div>
+        <div class="offer-desc">Spine width calculated against each vendor's real paper-per-inch spec — not a rough estimate that gets rejected two weeks later.</div>
+      </div>
+      <div class="offer-card">
+        <div class="offer-icon">🖼</div>
+        <div class="offer-name">Cover Audits</div>
+        <div class="offer-pitch">Bleed, margins, resolution.</div>
+        <div class="offer-desc">Catch the things that get a cover bounced back — wrong bleed, text in the safety margin, resolution too low to print clean.</div>
+      </div>
+      <div class="offer-card">
+        <div class="offer-icon">🔍</div>
+        <div class="offer-name">Reject Analysis</div>
+        <div class="offer-pitch">Know why, not just that.</div>
+        <div class="offer-desc">When a file fails, get the specific spec it violated and what to change — not a generic rejection email.</div>
+      </div>
+      <div class="offer-card">
+        <div class="offer-icon">✅</div>
+        <div class="offer-name">Pre-Submit Confidence</div>
+        <div class="offer-pitch">Pass on the first try.</div>
+        <div class="offer-desc">Run the audit before you submit to KDP, IngramSpark, or Lulu — fix it on your terms, not theirs.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Proof -->
+  <div class="proof">
+    <div class="proof-heading">The specs are real, not a promise</div>
+    <div class="proof-sub">The PPI registry behind Audits.farm is already live and validated against real vendor documentation — this isn't a mockup waiting for funding.</div>
+    <div class="proof-stats">
+      <div>
+        <div class="proof-stat-val">3</div>
+        <div class="proof-stat-label">Vendors Covered</div>
+      </div>
+      <div>
+        <div class="proof-stat-val">6</div>
+        <div class="proof-stat-label">Validated Specs</div>
+      </div>
+      <div>
+        <div class="proof-stat-val">0</div>
+        <div class="proof-stat-label">Validation Failures</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Site family -->
+  <div class="family">
+    <div class="family-sub">Built by the same colony that runs these:</div>
+    <div class="family-links">
+      <a class="family-link" href="https://aint.farm">🐜 aint.farm</a>
+      <a class="family-link" href="https://we-aint-live.vercel.app">📡 we.aint.live</a>
+      <a class="family-link" href="https://cuvver.app">📏 cuvver.app</a>
+    </div>
+  </div>
+
+</div>
+
+<div class="footer">
+  <a href="https://aint.farm">aint.farm</a>
+  &nbsp;·&nbsp;
+  <a href="https://cuvver.app">cuvver.app</a>
+</div>
+
+<script>
+// ── Supabase ──────────────────────────────────────────────────────────────────
+const sb = supabase.createClient(
+  'https://izqhukghnkbovzqkhouc.supabase.co',
+  'sb_publishable_Xrba2Tjb0m3hqu2AvxUmyA_katXFrKs'
+);
+
+// ── Bees ──────────────────────────────────────────────────────────────────────
+function spawnBee() {
+  const el = document.createElement('div');
+  el.className = 'bee';
+  el.textContent = '🐝';
+
+  const dir = Math.random() < 0.5 ? 'right' : 'left';
+  const dur = 14 + Math.random() * 18;
+  const del = Math.random() * 10;
+
+  el.style.top = (5 + Math.random() * 90) + 'vh';
+  el.style.left = '0';
+  el.style.animation = `drift-${dir} ${dur}s ${del}s linear infinite`;
+  document.body.appendChild(el);
+}
+for (let i = 0; i < 10; i++) spawnBee();
+
+// ── Waitlist ──────────────────────────────────────────────────────────────────
+async function join() {
+  const email = document.getElementById('email').value.trim();
+  const msg   = document.getElementById('wl-msg');
+  if (!email || !email.includes('@')) {
+    msg.style.color = 'var(--amber)';
+    msg.textContent = 'Enter a valid email.';
+    return;
+  }
+
+  const { error } = await sb.from('audits_waitlist').insert({ email });
+  if (error) {
+    if (error.code === '23505') {
+      msg.style.color = 'var(--amber)';
+      msg.textContent = "You're already on the list.";
+    } else {
+      msg.style.color = '#f87171';
+      msg.textContent = 'Something went wrong. Try again.';
+    }
+    return;
+  }
+
+  msg.style.color = 'var(--green)';
+  msg.textContent = "✓ You're in. We'll email you when audits open up.";
+  document.getElementById('email').value = '';
+}
+document.getElementById('email').addEventListener('keydown', e => { if (e.key === 'Enter') join(); });
+</script>
+</body>
+</html>
